@@ -1,11 +1,7 @@
 package com.example.controller
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
-import android.bluetooth.BluetoothHidDevice
-import android.bluetooth.BluetoothHidDeviceAppSdpSettings
+import android.bluetooth.*
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -30,48 +26,58 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var hidDevice: BluetoothHidDevice? = null
+    private var targetDevice: BluetoothDevice? = null
+
+    private var currentSteering: Byte = 0
+    private var currentThrottle: Byte = -127
+    private var currentBrake: Byte = -127
+
+    private val hidDescriptor = byteArrayOf(
+        0x05, 0x01, 0x09, 0x04, 0xa1.toByte(), 0x01, 0x05, 0x01,
+        0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x15, 0x81.toByte(),
+        0x25, 0x7f, 0x75, 0x08, 0x95, 0x03, 0x81.toByte(), 0x02,
+        0xc0.toByte()
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             weightSum = 3f
         }
 
         val leftSlider = SeekBar(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            max = 255
+            max = 254
             progress = 0
-            rotation = 270f
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    sendHidReport(brake = progress)
+                override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                    currentBrake = (p - 127).toByte()
+                    sendHidReport()
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) { seekBar?.progress = 0 }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentBrake = -127; sendHidReport() }
             })
         }
 
         statusText = TextView(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            text = "Starting Engine...\nTilt phone to steer."
+            text = "Initializing Bluetooth..."
             gravity = Gravity.CENTER
-            textSize = 18f
         }
 
         val rightSlider = SeekBar(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            max = 255
+            max = 254
             progress = 0
-            rotation = 270f
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    sendHidReport(throttle = progress)
+                override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                    currentThrottle = (p - 127).toByte()
+                    sendHidReport()
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) { seekBar?.progress = 0 }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentThrottle = -127; sendHidReport() }
             })
         }
 
@@ -82,7 +88,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-
         setupBluetooth()
     }
 
@@ -102,39 +107,38 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     registerGamepad()
                 }
             }
-            override fun onServiceDisconnected(profile: Int) {
-                hidDevice = null
-            }
+            override fun onServiceDisconnected(profile: Int) { hidDevice = null }
         }, BluetoothProfile.HID_DEVICE)
     }
 
     private fun registerGamepad() {
-        val sdpSettings = BluetoothHidDeviceAppSdpSettings(
-            "F1 Custom Controller",
-            "Mobile Gamepad",
-            "Tharun",
-            BluetoothHidDevice.SUBCLASS1_COMBO,
-            byteArrayOf() // USB HID descriptor mapping goes here
-        )
-
+        val sdpSettings = BluetoothHidDeviceAppSdpSettings("F1 Wheel", "Mobile Gamepad", "Tharun", BluetoothHidDevice.SUBCLASS1_COMBO, hidDescriptor)
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
             hidDevice?.registerApp(sdpSettings, null, null, Executors.newSingleThreadExecutor(), object : BluetoothHidDevice.Callback() {
-                override fun onAppStatusChanged(pluggedDevice: android.bluetooth.BluetoothDevice?, registered: Boolean) {
-                    runOnUiThread { statusText.text = if (registered) "Ready to Race!\nTilt to steer" else "Connection Failed" }
+                override fun onAppStatusChanged(device: BluetoothDevice?, registered: Boolean) {
+                    runOnUiThread { statusText.text = if (registered) "Ready to Pair!\nConnect from PC" else "Registration Failed" }
+                }
+                override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
+                    targetDevice = if (state == BluetoothProfile.STATE_CONNECTED) device else null
+                    runOnUiThread { statusText.text = if (state == BluetoothProfile.STATE_CONNECTED) "Connected!\nDrive Safe, Boss." else "Waiting for PC..." }
                 }
             })
         }
     }
 
-    private fun sendHidReport(steering: Float = 0f, throttle: Int = 0, brake: Int = 0) {
-        // Converts axis data and triggers hidDevice?.sendReport()
+    private fun sendHidReport() {
+        targetDevice?.let { device ->
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                hidDevice?.sendReport(device, 0, byteArrayOf(currentSteering, currentThrottle, currentBrake))
+            }
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val tiltX = event.values[0] 
-            val steeringAxis = (tiltX / 9.8f * -127f).coerceIn(-127f, 127f)
-            sendHidReport(steering = steeringAxis)
+            val tiltX = event.values[0]
+            currentSteering = ((tiltX / 9.8f * -127f).coerceIn(-127f, 127f)).toInt().toByte()
+            sendHidReport()
         }
     }
 
@@ -145,4 +149,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         accelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
     }
 
-    override funNormally I can help with things like this, but I don't seem to have access to that content. You can try again or ask me for something else.
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
+    }
+}
