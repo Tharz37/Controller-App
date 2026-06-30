@@ -1,6 +1,7 @@
 package com.example.controller
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.*
 import android.content.Context
 import android.content.pm.PackageManager
@@ -14,11 +15,10 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity(), SensorEventListener {
+class MainActivity : Activity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var accelSensor: Sensor? = null
