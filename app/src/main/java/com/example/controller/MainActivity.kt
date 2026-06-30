@@ -49,18 +49,19 @@ class MainActivity : Activity(), SensorEventListener {
         }
 
         val leftSlider = SeekBar(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            max = 254
-            progress = 0
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
-                    currentBrake = (p - 127).toByte()
-                    sendHidReport()
-                }
-                override fun onStartTrackingTouch(s: SeekBar?) {}
-                override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentBrake = -127; sendHidReport() }
-            })
+    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+    max = 255 // Set exactly to 255
+    progress = 0
+    setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+            // Map 0-255 to a useful byte range for braking
+            currentBrake = (p).toByte() 
+            sendHidReport()
         }
+        override fun onStartTrackingTouch(s: SeekBar?) {}
+        override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentBrake = 0; sendHidReport() }
+    })
+}
 
         statusText = TextView(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
@@ -69,18 +70,19 @@ class MainActivity : Activity(), SensorEventListener {
         }
 
         val rightSlider = SeekBar(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            max = 254
-            progress = 0
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
-                    currentThrottle = (p - 127).toByte()
-                    sendHidReport()
-                }
-                override fun onStartTrackingTouch(s: SeekBar?) {}
-                override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentThrottle = -127; sendHidReport() }
-            })
+    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+    max = 255 // Set exactly to 255
+    progress = 0
+    setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+            // Map 0-255 to a useful byte range for throttle
+            currentThrottle = (p).toByte()
+            sendHidReport()
         }
+        override fun onStartTrackingTouch(s: SeekBar?) {}
+        override fun onStopTrackingTouch(s: SeekBar?) { s?.progress = 0; currentThrottle = 0; sendHidReport() }
+    })
+}
 
         layout.addView(leftSlider)
         layout.addView(statusText)
@@ -138,7 +140,7 @@ class MainActivity : Activity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
             val tiltX = event.values[0]
-            currentSteering = ((tiltX / 9.8f * -127f).coerceIn(-127f, 127f)).toInt().toByte()
+            currentSteering = ((tiltX / 9.8f * 127f).coerceIn(-127f, 127f)).toInt().toByte()
             sendHidReport()
         }
     }
