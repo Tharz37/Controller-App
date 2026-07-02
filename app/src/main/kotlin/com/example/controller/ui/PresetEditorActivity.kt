@@ -1,6 +1,7 @@
 package com.example.controller.ui
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -114,6 +115,7 @@ class PresetEditorActivity : Activity() {
                     "Set lock-to-lock degrees" -> promptText("Degrees (e.g. 180)", el.gyroLockToLockDeg.toString()) {
                         it.toFloatOrNull()?.let { d -> el.gyroLockToLockDeg = d }
                     }
+                    else -> Unit
                 }
             }
             .show()
@@ -150,6 +152,3 @@ class PresetEditorActivity : Activity() {
         const val EXTRA_PRESET_CATEGORY = "preset_category"
     }
 }
-
-// Small helper so AlertDialog can be referenced without the full androidx import path.
-private typealias AlertDialog = android.app.AlertDialog
